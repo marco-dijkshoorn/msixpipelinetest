@@ -1,0 +1,102 @@
+name: Package and Sign Notepad++ from Winget
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download_and_prepare:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Install winget
+      uses: Cyberboss/install-winget@v1
+
+#    - name: Install Windows Package Inspector for Catalog Creation
+#      run: |
+#        winget install --id Microsoft.DesktopAppAssure -e --silent --accept-package-agreements --accept-source-agreements
+#      shell: powershell
+
+    - name: Start Package Inspector to Monitor Changes
+      run: |
+        # Start Package Inspector on drive C: to capture changes
+        PackageInspector.exe Start C:
+      shell: powershell
+
+    - name: Download VLC Installer with Winget
+      id: download_installer
+      run: |
+        # Download installer and capture the output to find actual file path
+        $downloadDir = "C:\actions\workspace"
+        $wingetOutput = winget download -e --id VideoLAN.VLC --disable-interactivity --accept-source-agreements --download-directory $downloadDir | Out-String
+        Write-Output $wingetOutput
+        
+        # Extract installer file path from the output
+        if ($wingetOutput -match "Installer downloaded: (.+\.exe)") {
+            $installerPath = $matches[1].Trim()
+            Write-Output "Installer path found: $installerPath"
+            echo "::set-output name=installer_path::$installerPath"
+        } else {
+            Write-Error "Installer file path not found in winget output."
+        }
+      shell: powershell
+
+    - name: Parse YAML for Installer Details
+      id: parse_yaml
+      run: |
+        $yamlFile = Get-ChildItem -Path "C:\actions\workspace" -Filter *.yaml | Select-Object -First 1
+        if ($yamlFile) {
+            $installerUrl = ""
+            $silentSwitch = ""
+            $lines = Get-Content -Path $yamlFile.FullName
+          
+            # Parse lines manually to extract InstallerUrl and Silent switch
+            foreach ($line in $lines) {
+                if ($line -match "InstallerUrl:\s*(.+)") {
+                    $installerUrl = $matches[1].Trim()
+                }
+                if ($line -match "Silent:\s*(.+)") {
+                    $silentSwitch = $matches[1].Trim()
+                }
+            }
+            # Extract installer filename from URL
+            $installerFileName = [System.IO.Path]::GetFileName($installerUrl)
+            $installerPath = Join-Path -Path "C:\actions\workspace" -ChildPath $installerFileName
+            # Set extracted values as outputs
+            Write-Output "Installer URL: $installerUrl"
+            Write-Output "Silent Install Switch: $silentSwitch"
+            echo "::set-output name=installer_url::$installerUrl"
+            echo "::set-output name=silent_switch::$silentSwitch"
+        } else {
+            Write-Error "YAML manifest file not found."
+        }
+      shell: powershell
+
+    - name: Install Notepad++ with Logging
+      run: |
+        $installerPath = "${{ steps.download_installer.outputs.installer_path }}"
+        $silentSwitch = "${{ steps.parse_yaml.outputs.silent_switch }}"
+        $logFile = "C:\actions\workspace\install_log.txt"
+        Start-Process -FilePath $installerPath -ArgumentList "$silentSwitch /LOG=$logFile" -Wait
+      shell: powershell
+
+    - name: Stop Package Inspector and Generate CAT/CDF Files
+      run: |
+        $outputPath = "C:\actions\workspace"
+        $catFileName = Join-Path -Path $outputPath -ChildPath "VLC.cat"
+        $cdfFileName = Join-Path -Path $outputPath -ChildPath "VLC.cdf"
+        
+        # Stop Package Inspector to capture changes in a CAT file
+        PackageInspector.exe Stop C: -Name $catFileName -cdfpath $cdfFileName
+      shell: powershell
+
+    - name: Upload CAT File and Installer to GitHub
+      uses: actions/upload-artifact@v3
+      with:
+        name: artifacts
+        path: |
+          C:\actions\workspace\VLC.cat
+          C:\actions\workspace\VLC.cdf
+          ${{ steps.download_installer.outputs.installer_path }}
