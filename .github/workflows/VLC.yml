@@ -1,4 +1,4 @@
-name: Package and Sign Notepad++ from Winget
+name: Package and Sign VLC Media Player from Winget
 
 on:
   workflow_dispatch:
@@ -74,7 +74,7 @@ jobs:
         }
       shell: powershell
 
-    - name: Install Notepad++ with Logging
+    - name: Install VLC with Logging
       run: |
         $installerPath = "${{ steps.download_installer.outputs.installer_path }}"
         $silentSwitch = "${{ steps.parse_yaml.outputs.silent_switch }}"
