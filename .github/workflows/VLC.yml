@@ -1,4 +1,4 @@
-name: Package and Sign VideoLAN.VLC from Winget
+name: Package and Sign VLC from Winget
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         PackageInspector.exe Start C:
       shell: powershell
 
-    - name: Download VideoLAN.VLC Installer with Winget
+    - name: Download VLC Installer with Winget
       id: download_installer
       run: |
         # Download installer and capture the output to find actual file path
