@@ -1,4 +1,4 @@
-name: Package and Sign VLC Media Player from Winget
+name: Package and Sign VideoLAN.VLC from Winget
 
 on:
   workflow_dispatch:
